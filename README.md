@@ -14,6 +14,7 @@
 
 # Apply infrastructure
 * terraform apply tfplan
+  
 ###########################################################################
 
 **2. Configure Kubernetes CLI**
