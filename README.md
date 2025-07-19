@@ -1,141 +1,110 @@
-Ollama EKS Cluster Provisioning Guide
-This guide will walk you through the professional and modular steps required to provision a secure, scalable Ollama cluster on AWS EKS using Infrastructure-as-Code (IaC). Follow these steps to set up your environment, deploy the infrastructure, and prepare for LLM serving with best practices in automation and security.
+**Ollama EKS Cluster Provisioning Guide**
+This guide details the professional steps required to provision a secure, scalable Ollama cluster on AWS EKS using Infrastructure-as-Code (Terraform) and Kubernetes.
 
-Prerequisites
-AWS Account with admin/appropriate IAM permissions.
+**Prerequisites**
 
-Linux/macOS Machine with sudo privileges.
+1. AWS Account with required IAM permissions
+2. Linux/macOS terminal with sudo privileges
+3. Your AWS Access Key ID and Secret Access Key
 
-User's AWS Access Key & Secret.
+1. **Install Required Tools**
+     
+# Install Terraform
+1. curl -fsSL https://apt.releases.hashicorp.com/gpg | sudo apt-key add -
+2. sudo apt-add-repository "deb [arch=$(dpkg --print-architecture)] https://apt.releases.hashicorp.com $(lsb_release -cs) main"
+3. sudo apt update && sudo apt install terraform
 
-1. Toolchain Installation
-Install and verify the core tools required for IaC provisioning and Kubernetes application management.
+# Install kubectl
+1. curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+2. sudo install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
 
-Terraform
-bash
-curl -fsSL https://apt.releases.hashicorp.com/gpg | sudo apt-key add -
-sudo apt-add-repository "deb [arch=$(dpkg --print-architecture)] https://apt.releases.hashicorp.com $(lsb_release -cs) main"
-sudo apt update && sudo apt install terraform
-kubectl
-bash
-curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
-sudo install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
-Helm
-bash
-curl https://baltocdn.com/helm/signing.asc | gpg --dearmor | sudo tee /usr/share/keyrings/helm.gpg > /dev/null
-echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/helm.gpg] https://baltocdn.com/helm/stable/debian/ all main" | sudo tee /etc/apt/sources.list.d/helm-stable-debian.list
-sudo apt update && sudo apt install helm
-AWS CLI
-bash
-curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
-unzip awscliv2.zip && sudo ./aws/install
-2. AWS CLI Configuration
-Configure CLI access and verify that your credentials are correct.
+# Install Helm
+1. curl https://baltocdn.com/helm/signing.asc | gpg --dearmor | sudo tee /usr/share/keyrings/helm.gpg > /dev/null
+2. echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/helm.gpg] https://baltocdn.com/helm/stable/debian/ all   main" | sudo tee /etc/apt/sources.list.d/helm-stable-debian.list
+3. sudo apt update && sudo apt install helm
 
-bash
-aws configure
-# Provide Access Key, Secret Key, region (us-west-2), output (json)
-aws sts get-caller-identity
-3. Project Structure
-Organize your code into clear, maintainable directories for Terraform modules, manifests, and scripts.
+# Install AWS CLI
+1. curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+2. unzip awscliv2.zip && sudo ./aws/install
+   
+**3. Configure AWS CLI**
 
-bash
-mkdir -p ollama-eks-cluster/{terraform/{modules/{vpc,eks,iam},environments/production},k8s-manifests/{ollama,monitoring,ingress},scripts/{deployment,testing},monitoring}
-cd ollama-eks-cluster
-4. Infrastructure Provisioning Steps
-4.1. Prepare Terraform Variable Files
-Edit terraform/environments/production/terraform.tfvars to set basic parameters:
+3.1 aws configure
+# Enter your AWS Access Key ID, Secret Access Key, default region (e.g., us-west-2), and output format (json)
 
-text
-aws_region         = "us-west-2"
-environment        = "production"
-cluster_name       = "ollama-cluster"
-availability_zones = ["us-west-2a", "us-west-2b", "us-west-2c"]
-vpc_cidr           = "10.0.0.0/16"
-public_subnet_cidrs  = ["10.0.1.0/24", "10.0.2.0/24", "10.0.3.0/24"]
-private_subnet_cidrs = ["10.0.10.0/24", "10.0.11.0/24", "10.0.12.0/24"]
-Customize other values as needed (see README for all variables).
+3.2 aws sts get-caller-identity
+# Verify credentials are correct; this should return your AWS account and user info
 
-4.2. Deploy the VPC, EKS, and Dependencies
-bash
-cd terraform/environments/production
+**Set Up Project Directory Structure**
 
-terraform init
-terraform validate
-terraform plan -out=tfplan
-terraform apply tfplan
-4.3. Configure kubectl Access for EKS
-bash
-aws eks update-kubeconfig --region us-west-2 --name ollama-cluster
-kubectl get nodes
-4.4. Install EKS Add-ons
-AWS Load Balancer Controller
+1. mkdir -p ollama-eks-cluster/{terraform/{modules/{vpc,eks,iam},environments/production},k8s- manifests/{ollama,monitoring,ingress},scripts/{deployment,testing},monitoring}
+2. cd ollama-eks-cluster
+   
+**4. Infrastructure Provisioning**
 
-NVIDIA Device Plugin
+1. cd terraform/environments/production
+2. terraform init
+3. terraform validate
+4. terraform plan -out=tfplan
+5. terraform apply tfplan
 
-Metrics Server
+**Configure kubectl Access for EKS**
 
-Cluster Autoscaler
+1. aws eks update-kubeconfig --region us-west-2 --name ollama-cluster
+2. kubectl get nodes
 
-Use Helm and/or kubectl apply with official YAMLs or scripts you maintain in scripts/deployment.
+**Install EKS Add-ons**
 
-5. Application & Monitoring Deployment
-5.1. Namespace & Persistent Volume Claims
-Apply manifests in k8s-manifests/ollama/ for your:
+1 .Install with Helm or kubectl
+2. AWS Load Balancer Controller
+3. NVIDIA Device Plugin
+4. Metrics Server
+5. Cluster Autoscaler
 
-Kubernetes namespace
+# Example: Install NVIDIA Device Plugin
+1. kubectl apply -f https://raw.githubusercontent.com/NVIDIA/k8s-device-plugin/v0.14.0/nvidia-device-plugin.yml
+(Other manifests/scripts can go under scripts/deployment/.)
 
-PersistentVolumes and PVCs (EBS-backed for model storage)
+**5. Application & Monitoring Deployment**
+5.1. Namespaces & Storage
 
-bash
-kubectl apply -f k8s-manifests/ollama/namespace.yaml
-kubectl apply -f k8s-manifests/ollama/persistent-volume.yaml
-5.2. Ollama StatefulSet Deployment
-Apply the StatefulSet manifest to schedule pods on GPU nodes and ensure model pre-loading.
+1. kubectl apply -f k8s-manifests/ollama/namespace.yaml
+2. kubectl apply -f k8s-manifests/ollama/persistent-volume.yaml
 
-bash
-kubectl apply -f k8s-manifests/ollama/deployment.yaml
-5.3. Ingress & Service
-Expose the Ollama API securely using your ALB ingress manifest.
+**5.2. Ollama StatefulSet**
+1. kubectl apply -f k8s-manifests/ollama/deployment.yaml
+   
+**5.3. Service & Ingress**
 
-bash
-kubectl apply -f k8s-manifests/ingress/ingress.yaml
-5.4. Monitoring Stack
-Provision monitoring with Helm or manifests:
+1. kubectl apply -f k8s-manifests/ingress/ingress.yaml
 
-bash
-kubectl create namespace monitoring
-helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
-helm install kube-prometheus-stack prometheus-community/kube-prometheus-stack -n monitoring
-6. Security Hardening
-Use Security Groups for ALB and compute nodes.
+**5.4. Monitoring Stack**
 
-Enforce least-privilege IAM roles for EKS and node group access.
+1. kubectl create namespace monitoring
+2. helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+3. helm install kube-prometheus-stack prometheus-community/kube-prometheus-stack -n monitoring
 
-Apply Kubernetes Network Policies for pod isolation.
+**6. Security Hardening**
 
-Enable TLS/SSL everywhere user traffic enters.
+1. Use Security Groups for ALB and nodes.
+2. Grant least-privilege IAM roles to services and node groups.
+3.Enable Kubernetes Network Policies for pod isolation.
+4. Secure all ingress with TLS/SSL certificates.
+5. Store sensitive data with AWS Secrets Manager.
 
-Store sensitive data (API keys, DB passwords) in AWS Secrets Manager.
+**7. Validation**
 
-7. Cluster Validation
-Check Pod Status:
-kubectl get pods -n ollama
+1. kubectl get pods -n ollama
+2. kubectl get nodes
+3. kubectl get hpa -n ollama
 
-List Nodes:
-kubectl get nodes
+# Get ALB DNS and test API endpoint:
+1. kubectl get ingress -n ollama
+2. curl https://<your-alb-dns>/api/tags
 
-Test ALB Ingress:
-curl https://<your-alb-dns>/api/tags
+**8. Load Testing**
 
-Monitor Scaling:
-kubectl get hpa -n ollama
+1. Build or use a script to simulate concurrent user requests and trigger scaling.
 
-8. Load Testing (Optional)
-Create and use a load testing script (e.g., Python with aiohttp) to simulate concurrent users, verify scaling, and ensure low latency under expected workloads.
-
-9. Clean Up Resources
-To avoid unwanted AWS charges, destroy the provisioned infrastructure when not needed:
-
-bash
-terraform destroy
+**9. Tear Down & Clean Up**
+1. terraform destroy
