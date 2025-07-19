@@ -1,110 +1,113 @@
-**Ollama EKS Cluster Provisioning Guide**
-This guide details the professional steps required to provision a secure, scalable Ollama cluster on AWS EKS using Infrastructure-as-Code (Terraform) and Kubernetes.
+#################################################
+**1. Provision AWS Infrastructure**
+*  cd terraform/environments/production
 
-**Prerequisites**
+# Initialize Terraform
+*  terraform init
 
-1. AWS Account with required IAM permissions
-2. Linux/macOS terminal with sudo privileges
-3. Your AWS Access Key ID and Secret Access Key
+# Validate configuration
+* terraform validate
 
-1. **Install Required Tools**
-     
-# Install Terraform
-1. curl -fsSL https://apt.releases.hashicorp.com/gpg | sudo apt-key add -
-2. sudo apt-add-repository "deb [arch=$(dpkg --print-architecture)] https://apt.releases.hashicorp.com $(lsb_release -cs) main"
-3. sudo apt update && sudo apt install terraform
+# Plan deployment
+* terraform plan -out=tfplan
 
-# Install kubectl
-1. curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
-2. sudo install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
+# Apply infrastructure
+* terraform apply tfplan
+###########################################################################
 
-# Install Helm
-1. curl https://baltocdn.com/helm/signing.asc | gpg --dearmor | sudo tee /usr/share/keyrings/helm.gpg > /dev/null
-2. echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/helm.gpg] https://baltocdn.com/helm/stable/debian/ all   main" | sudo tee /etc/apt/sources.list.d/helm-stable-debian.list
-3. sudo apt update && sudo apt install helm
+**2. Configure Kubernetes CLI**
 
-# Install AWS CLI
-1. curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
-2. unzip awscliv2.zip && sudo ./aws/install
-   
-**3. Configure AWS CLI**
+# Update your kubeconfig for EKS authentication
+* aws eks update-kubeconfig --region us-west-2 --name ollama-cluster
 
-3.1 aws configure
-# Enter your AWS Access Key ID, Secret Access Key, default region (e.g., us-west-2), and output format (json)
+# Verify cluster and node access
+* kubectl get nodes
+* kubectl get namespaces
 
-3.2 aws sts get-caller-identity
-# Verify credentials are correct; this should return your AWS account and user info
+**3. Install Essential Cluster Components**
+# Make the install script executable and run it
 
-**Set Up Project Directory Structure**
+1. chmod +x scripts/deployment/install-cluster-components.sh
+2. ./scripts/deployment/install-cluster-components.sh
 
-1. mkdir -p ollama-eks-cluster/{terraform/{modules/{vpc,eks,iam},environments/production},k8s- manifests/{ollama,monitoring,ingress},scripts/{deployment,testing},monitoring}
-2. cd ollama-eks-cluster
-   
-**4. Infrastructure Provisioning**
+**4. Deploy Kubernetes Resources**
 
-1. cd terraform/environments/production
-2. terraform init
-3. terraform validate
-4. terraform plan -out=tfplan
-5. terraform apply tfplan
+# Deploy Ollama workloads
+*kubectl apply -f k8s-manifests/ollama/
 
-**Configure kubectl Access for EKS**
+# Deploy Ingress (ALB setup)
+* kubectl apply -f k8s-manifests/ingress/
 
-1. aws eks update-kubeconfig --region us-west-2 --name ollama-cluster
-2. kubectl get nodes
+# Verify deployments in 'ollama' namespace
+* kubectl get all -n ollama
+* kubectl get ingress -n ollama
 
-**Install EKS Add-ons**
+**5. Set Up Monitoring Stack**
+# Make the monitoring installer executable and run it
+1. chmod +x scripts/deployment/install-monitoring.sh
+2. ./scripts/deployment/install-monitoring.sh
 
-1 .Install with Helm or kubectl
-2. AWS Load Balancer Controller
-3. NVIDIA Device Plugin
-4. Metrics Server
-5. Cluster Autoscaler
+**6. Configure CloudWatch Container Insights**
+* helm repo add aws-cloudwatch-metrics https://aws.github.io/eks-charts
+* helm install aws-cloudwatch-metrics aws-cloudwatch-metrics/aws-cloudwatch-metrics \
+  --namespace amazon-cloudwatch \
+  --create-namespace \
+  --set clusterName=ollama-cluster
 
-# Example: Install NVIDIA Device Plugin
-1. kubectl apply -f https://raw.githubusercontent.com/NVIDIA/k8s-device-plugin/v0.14.0/nvidia-device-plugin.yml
-(Other manifests/scripts can go under scripts/deployment/.)
+**7. Secure Networking**
+# Apply network policy for in-cluster communication control
+* kubectl apply -f k8s-manifests/ollama/network-policy.yaml
 
-**5. Application & Monitoring Deployment**
-5.1. Namespaces & Storage
+**8. Load Testing and Validation**
 
-1. kubectl apply -f k8s-manifests/ollama/namespace.yaml
-2. kubectl apply -f k8s-manifests/ollama/persistent-volume.yaml
+# Install required Python library for async load testing
+* pip3 install aiohttp
 
-**5.2. Ollama StatefulSet**
-1. kubectl apply -f k8s-manifests/ollama/deployment.yaml
-   
-**5.3. Service & Ingress**
+# Make the load-test script executable
+* chmod +x scripts/testing/load-test.py
 
-1. kubectl apply -f k8s-manifests/ingress/ingress.yaml
+# Get the load balancer URL
+* OLLAMA_URL=$(kubectl get ingress ollama-ingress -n ollama -o jsonpath='{.status.loadBalancer.ingress[0].hostname}')
 
-**5.4. Monitoring Stack**
+# Run load test: 20 users, 10 requests each
+* python3 scripts/testing/load-test.py http://$OLLAMA_URL 20 10
 
-1. kubectl create namespace monitoring
-2. helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
-3. helm install kube-prometheus-stack prometheus-community/kube-prometheus-stack -n monitoring
+**9. Monitor Scaling Behavior**
+# Track the state of pods, nodes, and scaling in real time
+* watch kubectl get pods -n ollama
+* watch kubectl get hpa -n ollama
+* watch kubectl get nodes
+* kubectl top pods -n ollama
+* kubectl top nodes
 
-**6. Security Hardening**
+**10. Access Monitoring Dashboards**
 
-1. Use Security Groups for ALB and nodes.
-2. Grant least-privilege IAM roles to services and node groups.
-3.Enable Kubernetes Network Policies for pod isolation.
-4. Secure all ingress with TLS/SSL certificates.
-5. Store sensitive data with AWS Secrets Manager.
+# Port-forward to Grafana (web dashboard)
+* kubectl port-forward -n monitoring svc/kube-prometheus-stack-grafana 3000:80
 
-**7. Validation**
+# Port-forward to Prometheus
+* kubectl port-forward -n monitoring svc/kube-prometheus-stack-prometheus 9090:9090
 
-1. kubectl get pods -n ollama
-2. kubectl get nodes
-3. kubectl get hpa -n ollama
+# Grafana: http://localhost:3000  (username: admin, password: admin123)
+# Prometheus: http://localhost:9090
 
-# Get ALB DNS and test API endpoint:
-1. kubectl get ingress -n ollama
-2. curl https://<your-alb-dns>/api/tags
+**11. API Endpoint Testing**
 
-**8. Load Testing**
+# Load balancer URL for Ollama API
+* OLLAMA_URL=$(kubectl get ingress ollama-ingress -n ollama -o jsonpath='{.status.loadBalancer.ingress[0].hostname}')
 
-1. Build or use a script to simulate concurrent user requests and trigger scaling.
+# Test models listing endpoint
+* curl -X GET http://$OLLAMA_URL/api/tags
 
-**9. Tear Down & Clean Up**
-1. terraform destroy
+# Test model inference endpoint
+curl -X POST http://$OLLAMA_URL/api/generate \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "gemma2:9b",
+    "prompt": "Explain Kubernetes in simple terms",
+    "stream": false
+  }'
+**12. Deployment Summary & Health**
+
+1. chmod +x scripts/deployment/deployment-summary.sh
+2. ./scripts/deployment/deployment-summary.sh
