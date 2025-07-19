@@ -109,6 +109,7 @@ curl -X POST http://$OLLAMA_URL/api/generate \
     "prompt": "Explain Kubernetes in simple terms",
     "stream": false
   }'
+
 **12. Deployment Summary & Health**
 
 1. chmod +x scripts/deployment/deployment-summary.sh
