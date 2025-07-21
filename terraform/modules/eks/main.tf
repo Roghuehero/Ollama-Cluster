@@ -81,3 +81,54 @@ resource "aws_eks_node_group" "gpu" {
     effect = "NO_SCHEDULE"
   }
 }
+======
+variable "cluster_name" {
+  description = "Name of the EKS cluster"
+  type        = string
+}
+
+variable "cluster_version" {
+  description = "Kubernetes version for the EKS cluster"
+  type        = string
+}
+
+variable "cluster_service_role_arn" {
+  description = "IAM role ARN for the EKS control plane"
+  type        = string
+}
+
+variable "node_group_role_arn" {
+  description = "IAM role ARN for the EKS node groups"
+  type        = string
+}
+
+variable "private_subnet_ids" {
+  description = "List of private subnet IDs for EKS"
+  type        = list(string)
+}
+
+variable "gpu_instance_types" {
+  description = "List of GPU instance types for the GPU node group"
+  type        = list(string)
+}
+
+variable "gpu_node_desired_size" {
+  description = "Desired number of GPU nodes"
+  type        = number
+}
+
+variable "gpu_node_min_size" {
+  description = "Minimum number of GPU nodes"
+  type        = number
+}
+
+variable "gpu_node_max_size" {
+  description = "Maximum number of GPU nodes"
+  type        = number
+}
+
+variable "environment" {
+  description = "Deployment environment (e.g., dev, prod)"
+  type        = string
+}
+
