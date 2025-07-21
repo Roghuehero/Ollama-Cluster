@@ -112,3 +112,32 @@ resource "aws_route_table_association" "private" {
   subnet_id      = aws_subnet.private[count.index].id
   route_table_id = aws_route_table.private[count.index].id
 }
+variable "vpc_cidr" {
+  description = "VPC CIDR block"
+  type        = string
+}
+
+variable "availability_zones" {
+  description = "Availability zones"
+  type        = list(string)
+}
+
+variable "public_subnet_cidrs" {
+  description = "Public subnet CIDRs"
+  type        = list(string)
+}
+
+variable "private_subnet_cidrs" {
+  description = "Private subnet CIDRs"
+  type        = list(string)
+}
+
+variable "cluster_name" {
+  description = "EKS cluster name"
+  type        = string
+}
+
+variable "environment" {
+  description = "Environment name"
+  type        = string
+}
